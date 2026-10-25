@@ -1,0 +1,126 @@
+plugin under test: ~\Desktop\раб стол\plugin\1231.plugin (5927 bytes)  <- a genuine Exteragram plugin from the author's folder
+
+$ exsig keygen --name @author --out demo/.work/keys          # cold root key
+keyid      e03825f73d8943b8
+fingerprint e038:25f7:3d89:43b8:a6b1:bd38:18f1:b79e:b47d:faae:bfe3:ed32:b7cb:366b:57b3:ec85
+private    demo/.work/keys\@author.key  (PLAINTEXT - keep this file offline)
+public     demo/.work/keys\@author.pub.json
+share the .pub.json however you like (channel, repo, USB) - no server needed
+[exit 0]
+
+$ exsig keygen --name build-server --out demo/.work/keys     # key that touches code
+keyid      fb45b8034d207587
+fingerprint fb45:b803:4d20:7587:3258:97aa:b187:52b0:74c4:6ee3:7997:e7b4:6d34:5320:26e9:b3bb
+private    demo/.work/keys\build-server.key  (PLAINTEXT - keep this file offline)
+public     demo/.work/keys\build-server.pub.json
+share the .pub.json however you like (channel, repo, USB) - no server needed
+[exit 0]
+
+$ exsig cert-issue --root @author.key --subject-pub build-server.pub.json --plugin-id ultimate_spam_tool
+certificate for fb45b8034d207587 covering ['ultimate_spam_tool']
+issued by e03825f73d8943b8 -> demo/.work/cert.json
+[exit 0]
+
+$ exsig keyring add --pub @author.pub.json        # pin only the root's public half
+trusted e03825f73d8943b8 as @author in demo/.work/keyring.json
+fingerprint e038:25f7:3d89:43b8:a6b1:bd38:18f1:b79e:b47d:faae:bfe3:ed32:b7cb:366b:57b3:ec85
+[exit 0]
+
+$ exsig sign 1231.plugin --key build-server.key --cert cert.json
+source          ~\Desktop\раб стол\plugin\1231.plugin
+output          demo/.work/1231.signed.plugin
+container       plugin
+payload_sha256  039613e19455df6d6cc2a5b705886822c22231db2ee3cfc626c535c6b24c6bf1
+file_sha256     c1923bf6df22587d244e8ea7d6da61ee37b6f77b4ffd3469600e2fae50166953
+plugin_id       ultimate_spam_tool
+plugin_version  1.0.0
+keyid           fb45b8034d207587
+bytes           7108
+delegated       True
+[exit 0]
+
+--- what the host sees ---
+$ exsig verify 1231.signed.plugin
+[OK] demo/.work/1231.signed.plugin -> signed by @author -> build-server (keyid fb45b8034d207587) via certificate delegated by e03825f73d8943b8
+       id=ultimate_spam_tool version=1.0.0 author=@Username content=039613e19455df6d...
+[exit 0]
+
+$ exsig verify 1231.plugin                    # the author's own unsigned file
+[UNSIGNED] ~\Desktop\раб стол\plugin\1231.plugin -> no signature block
+       ! apply the host's unsigned-plugin policy (reject by default)
+[exit 2]
+
+$ exsig verify tampered.plugin             # one byte of the code rewritten
+[REJECT] demo/.work/tampered.plugin -> content does not match the signed digest
+       id=ultimate_spam_tool version=1.0.0 author=@Username content=4f2349f7c2413c9d...
+       ! payload hashes to 4f2349f7c2413c9d181fdafa1730cbb659731058ebd4ded92c04f4fa9a73a590, the signature covers 039613e19455df6d6cc2a5b705886822c22231db2ee3cfc626c535c6b24c6bf1
+[exit 1]
+
+$ exsig verify ...signed.plugin --expect-version 9.9.9   # old build sold as new
+[REJECT] demo/.work/1231.signed.plugin -> signed version is '1.0.0', expected '9.9.9'
+       id=ultimate_spam_tool version=1.0.0 author=@Username content=039613e19455df6d...
+       note: this is how a signed older build replayed as a newer one gets caught
+[exit 1]
+
+--- the same author ships a .eaf bundle ---
+$ exsig pack bundle_src --out 1231.eaf
+output        demo/.work/1231.eaf
+root          plugin
+entries       3 (2784 bytes)
+  plugin/meta.yml
+  plugin/src/main.py
+  refmap.yml
+now sign it:  exsig sign demo/.work/1231.eaf --key <build.key> --cert <cert.json>
+[exit 0]
+
+$ exsig sign 1231.eaf --key build-server.key --cert cert.json
+source          demo/.work/1231.eaf
+output          demo/.work/1231.signed.eaf
+container       eaf
+entries         3
+tree_sha256     3f4ce5c34fc3eed3077d2d1d53bac343251620c557d1a88d45632308d2dd4714
+file_sha256     198b7a80511987e81ff216908a42af08115ba602ce3e0ca75e1132584d8e5e4b
+plugin_id       ultimate_spam_tool
+plugin_version  1.0.0
+keyid           fb45b8034d207587
+bytes           4261
+delegated       True
+[exit 0]
+
+$ exsig verify 1231.signed.eaf          # every entry hash is checked
+[OK] demo/.work/1231.signed.eaf -> signed by @author -> build-server (keyid fb45b8034d207587) via certificate delegated by e03825f73d8943b8
+       id=ultimate_spam_tool version=1.0.0 author=@Username entries=3 content=3f4ce5c34fc3eed3...
+[exit 0]
+
+$ exsig unpack 1231.signed.eaf --dest demo/.work/installed
+3 files -> demo/.work/installed
+  plugin/meta.yml
+  plugin/src/main.py
+  refmap.yml
+[exit 0]
+
+$ exsig verify injected.eaf           # a file added inside a signed bundle
+[REJECT] demo/.work/injected.eaf -> archive content does not match the signed entry list
+       id=ultimate_spam_tool version=1.0.0 author=@Username entries=3 content=1924434c98c1f46d...
+       ! entry 'plugin/src/exfil.py' is not covered by the signature
+[exit 1]
+
+$ exsig unpack escape.eaf --dest demo/.work/installed   # path traversal entry
+error: unsafe entry name: '../evil.py'
+[exit 1]
+
+$ exsig keyring revoke --keyid fb45b8034d207587     # build server compromised, key never pinned
+fb45b8034d207587 -> revoked (tombstone: the public key was never on record)
+[exit 0]
+
+$ exsig verify ...signed.plugin            # after the revocation
+[REJECT] demo/.work/1231.signed.plugin -> key or certificate is not usable
+       id=ultimate_spam_tool version=1.0.0 author=@Username content=039613e19455df6d...
+       ! certificate rejected: subject key fb45b8034d207587 is revoked
+[exit 1]
+
+$ exsig verify ...signed.eaf               # one revocation, both containers dead
+[REJECT] demo/.work/1231.signed.eaf -> key or certificate is not usable
+       id=ultimate_spam_tool version=1.0.0 author=@Username entries=3 content=3f4ce5c34fc3eed3...
+       ! certificate rejected: subject key fb45b8034d207587 is revoked
+[exit 1]
