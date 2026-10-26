@@ -4,3 +4,11 @@ __pycache__/
 demo/.work/
 *.key
 keyring.json
+
+# signed release artifacts (9 MB third-party bundle) — not for git
+*.signed.eaf
+
+# the author's own bundle, copied byte-for-byte to be signed beside; the .exsig IS publishable
+*.eaf
+!*.eaf.exsig
+

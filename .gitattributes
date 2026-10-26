@@ -1,0 +1,8 @@
+# Подписанные артефакты проверяются по хэшу байтов. Git не должен трогать в них
+# переводы строк - ни при коммите, ни при клонировании с core.autocrlf=true.
+*.exsig -text
+*.plugin -text
+*.eaf -text
+*.elyx -text
+trust/*.json -text
+sigs/** -text
